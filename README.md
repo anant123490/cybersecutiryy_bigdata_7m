@@ -2,7 +2,7 @@
 
 **Network Intrusion Detection and Cyber Threat Analytics Using Hadoop and Apache Spark**
 
-CyberShield is a defensive, offline analytics project for labeled network-flow CSV files. Hadoop HDFS stores both source data and cleaned output; PySpark computes traffic analytics; scikit-learn trains and evaluates a multiclass model on a bounded sample; MongoDB persists processed predictions and alerts; Streamlit presents the latest run.
+CyberShield is a defensive, offline analytics project for labeled network-flow CSV files. Hadoop HDFS stores source data and cleaned output; PySpark computes traffic analytics; scikit-learn trains and evaluates a multiclass model on a bounded sample; Streamlit presents the latest run. MongoDB is an optional sink for predictions and alerts. This implementation uses Spark for processing; Pig and Hive are not required.
 
 Only use public benchmark files or network logs you are authorized to analyze. This project does not capture traffic, scan networks, or take response actions.
 
@@ -25,7 +25,7 @@ offline flow CSV ──upload──> HDFS raw/
                                              Streamlit dashboard
 ~~~
 
-The compose setup runs a real HDFS NameNode and DataNode and the Spark application reads its input from HDFS. For laptop accessibility, Spark compute runs in local mode on one machine and HDFS has one DataNode with replication set to one. It demonstrates distributed storage and the Spark/HDFS data path; it is not a fault-tolerant production cluster or multi-worker Spark cluster.
+The native WSL runner and optional compose setup use a real HDFS NameNode and DataNode, and Spark reads its input from HDFS. For laptop accessibility, Spark compute runs in local mode on one machine and HDFS has one DataNode with replication set to one. It demonstrates distributed storage and the Spark/HDFS data path; it is not a fault-tolerant production cluster or multi-worker Spark cluster.
 
 ## Folder structure
 
@@ -42,8 +42,11 @@ CyberShield/
 │   ├── academic_report.md
 │   ├── presentation_and_viva.md
 │   └── troubleshooting.md
+├── scripts/run_hadoop_spark.ps1
+├── scripts/run_hadoop_spark_wsl.sh
 ├── scripts/upload_to_hdfs.ps1
 ├── scripts/upload_to_hdfs.sh
+├── hadoop-conf/                  # native single-node Hadoop configuration
 ├── docker-compose.yml
 ├── Dockerfile
 ├── hadoop.env
@@ -81,7 +84,50 @@ The local run reads data/sample/sample_traffic.csv, writes a cleaned CSV plus JS
 
 Then open http://localhost:8501. To use a local labeled CSV, pass --input path/to/file.csv. To analyze another local sample, the same command applies.
 
-## Full Hadoop/HDFS deployment with Docker Compose
+## Native Hadoop + Spark on WSL (no Docker)
+
+This is the full HDFS and Spark path for Windows. It uses Ubuntu 24.04 in WSL, Java 17, Hadoop 3.5.0, and the isolated WSL Python environment. The PowerShell runner starts HDFS if it is not already running, uploads the selected CSV, runs Spark against HDFS, and writes the dashboard artifacts under `data/processed/`.
+
+One-time prerequisites in Ubuntu 24.04 WSL:
+
+~~~shell
+sudo apt update
+sudo apt install -y openjdk-17-jdk python3-venv curl
+mkdir -p "$HOME/cybershield-hadoop"
+cd "$HOME/cybershield-hadoop"
+curl -fLO https://downloads.apache.org/hadoop/common/hadoop-3.5.0/hadoop-3.5.0.tar.gz
+curl -fLO https://downloads.apache.org/hadoop/common/hadoop-3.5.0/hadoop-3.5.0.tar.gz.sha512
+sha512sum -c hadoop-3.5.0.tar.gz.sha512
+tar -xzf hadoop-3.5.0.tar.gz
+~~~
+
+Run from PowerShell in the project folder:
+
+~~~powershell
+.\scripts\run_hadoop_spark.ps1
+~~~
+
+To use another labeled CSV:
+
+~~~powershell
+.\scripts\run_hadoop_spark.ps1 -CsvPath .\data\raw\your_flows.csv
+~~~
+
+The first run formats only the new CyberShield NameNode directory, then creates `/user/cybershield/raw`, uploads the CSV, and writes cleaned Parquet to `/user/cybershield/processed/latest`. MongoDB is skipped unless `MONGODB_URI` is set in WSL; Spark and HDFS work without MongoDB. The NameNode UI is at http://localhost:9870 while HDFS is running. HDFS files persist across runs in `$HOME/cybershield-hdfs-data/`.
+
+The runner creates a WSL venv at `$HOME/cybershield-pyspark-venv` and installs `requirements.txt` there when required. `setuptools` is included because PySpark 3.5.6 uses `distutils.version` for its pandas conversion path on Python 3.12.
+
+Check the HDFS files from an Ubuntu WSL terminal:
+
+~~~shell
+source "$HOME/.profile"
+hdfs dfs -ls -R /user/cybershield
+hdfs dfsadmin -report
+~~~
+
+After the run, start or refresh the dashboard with the normal Windows Python command from the no-Docker section above. It reads the same `data/processed/` artifacts.
+
+## Optional Docker Compose route
 
 Requirements for the full-stack path: Docker Desktop with its WSL2 backend on Windows, or Docker Engine plus the Docker Compose plugin on Linux; at least 8 GB RAM is recommended for a comfortable run. Internet is needed once to pull container images and Python packages. Use the WSL/Linux instructions from a WSL/Linux terminal; use PowerShell for the Windows script.
 
@@ -227,7 +273,7 @@ After a successful pipeline run, these files are generated:
 | HDFS processed/latest | Cleaned Parquet output from Spark. |
 | MongoDB CyberShield | Stored held-out records, alerts, and run summaries. |
 
-No model has been run as part of preparing these source files, so there are no real project scores included here. After running it, generate actual evidence screenshots with Snipping Tool on Windows or the screenshot utility on Linux: HDFS NameNode overview, HDFS raw/processed listing, terminal pipeline completion, and dashboard sections for analytics and model evaluation. Save screenshots in a project evidence folder and record dataset filenames, run date, row counts, and actual output metrics in the report.
+The checked-in repository excludes generated run artifacts. A local native WSL run on the included 26-row synthetic sample completed with 26 cleaned flows, 12 normal and 14 labeled attacks, and 7 held-out predictions. The sample split scored 1.0 on accuracy and macro F1; that result is not a meaningful benchmark because the sample is tiny and synthetic. For a project evaluation, use a full labeled benchmark and report its measured metrics. Generate evidence screenshots with Snipping Tool on Windows or the screenshot utility on Linux: HDFS NameNode overview, HDFS raw/processed listing, terminal pipeline completion, and dashboard sections for analytics and model evaluation. Save screenshots in a project evidence folder and record dataset filenames, run date, row counts, and actual output metrics in the report.
 
 ## Academic materials
 

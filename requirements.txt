@@ -6,3 +6,4 @@ pymongo==4.11.3
 streamlit==1.42.2
 plotly==6.0.0
 pyarrow==19.0.1
+setuptools>=68

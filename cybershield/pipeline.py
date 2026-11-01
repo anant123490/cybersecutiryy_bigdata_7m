@@ -455,13 +455,18 @@ def main() -> None:
             if local_mode
             else "hdfs://namenode:9000/user/cybershield/processed/latest"
         )
+    default_fs = (
+        "file:///"
+        if local_mode
+        else os.getenv("HDFS_DEFAULT_FS", "hdfs://namenode:9000")
+    )
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     spark = (
         SparkSession.builder.appName("CyberShield-Offline-IDS-Analytics")
         .master(os.getenv("SPARK_MASTER", "local[*]"))
         .config("spark.sql.shuffle.partitions", os.getenv("SPARK_SHUFFLE_PARTITIONS", "8"))
-        .config("spark.hadoop.fs.defaultFS", "file:///" if local_mode else "hdfs://namenode:9000")
+        .config("spark.hadoop.fs.defaultFS", default_fs)
         .getOrCreate()
     )
     spark.sparkContext.setLogLevel("WARN")
@@ -518,6 +523,12 @@ def main() -> None:
             write_json(output_dir / "analytics.json", analytics)
         elif local_mode:
             analytics["mongodb_write"] = {"status": "skipped", "reason": "local-only mode"}
+            write_json(output_dir / "analytics.json", analytics)
+        elif args.skip_mongo:
+            analytics["mongodb_write"] = {
+                "status": "skipped",
+                "reason": "--skip-mongo requested",
+            }
             write_json(output_dir / "analytics.json", analytics)
         LOGGER.info(
             "Complete: %s raw rows, %s cleaned flows, %s held-out predictions. Metrics: %s",

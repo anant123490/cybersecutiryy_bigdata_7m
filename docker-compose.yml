@@ -50,6 +50,7 @@ services:
     environment:
       HDFS_INPUT: hdfs://namenode:9000/user/cybershield/raw/*.csv
       HDFS_OUTPUT: hdfs://namenode:9000/user/cybershield/processed/latest
+      HDFS_DEFAULT_FS: hdfs://namenode:9000
       MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DATABASE: CyberShield
       LOCAL_OUTPUT_DIR: /workspace/data/processed
